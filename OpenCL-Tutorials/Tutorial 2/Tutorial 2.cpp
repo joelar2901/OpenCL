@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 	//Part 1 - handle command line options such as device selection, verbosity, etc.
 	int platform_id = 0;
 	int device_id = 0;
-	string image_filename = "test_large.ppm";
+	string image_filename = "test(1).pgm";
 
 	for (int i = 1; i < argc; i++) {
 		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
@@ -77,30 +77,37 @@ int main(int argc, char **argv) {
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 //		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
 
+		typedef int mytype;
+		std::vector<mytype> H(256);
+		size_t histsize = H.size() * sizeof(mytype);
+
 		//4.1 Copy images to device memory
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
 //		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
 
 		//4.2 Setup and execute the kernel (i.e. device code)
-		cl::Kernel kernel = cl::Kernel(program, "avg_filterND");
-		kernel.setArg(0, dev_image_input);
-		kernel.setArg(1, dev_image_output);
+		cl::Kernel kernel = cl::Kernel(program, "hist_simple");
+		kernel.setArg(0, dev_image_input); 
+		kernel.setArg(1, dev_image_output); 
 //		kernel.setArg(2, dev_convolution_mask);
 
 		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.width(), image_input.height(),image_input.spectrum()), 32);
 
 		vector<unsigned char> output_buffer(image_input.size());
 		//4.3 Copy the result from device to host
-		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+		//queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, histsize, &H[0] );
 
-		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
-		CImgDisplay disp_output(output_image,"output");
 
- 		while (!disp_input.is_closed() && !disp_output.is_closed()
+
+		//CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		//CImgDisplay disp_output(output_image,"output");
+
+ 		/*while (!disp_input.is_closed() && !disp_output.is_closed()
 			&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
 		    disp_input.wait(1);
 		    disp_output.wait(1);
-	    }		
+	    } */		
 
 	}
 	catch (const cl::Error& err) {

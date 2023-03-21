@@ -4,6 +4,21 @@ kernel void identity(global const uchar* A, global uchar* B) {
 	B[id] = A[id];
 }
 
+kernel void hist_simple(global const int* A, global int* H /*, const int nr_bins */) { 
+	int id = get_global_id(0);
+
+	//assumes that H has been initialised to 0
+	int bin_index = A[id];//take value as a bin index
+	INFINITY;
+	/* if (bin_index > nr_bins - 1)
+	{
+		bin_index = nr_bins - 1;	
+	}
+	*/
+	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+}
+
+
 kernel void filter_r(global const uchar* A, global uchar* B) {
 	int id = get_global_id(0);
 	int image_size = get_global_size(0)/3; //each image consists of 3 colour channels
