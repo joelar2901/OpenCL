@@ -96,11 +96,16 @@ kernel void reduce_add_4(global const int* A, global int* B, local int* scratch)
 }
 
 //a very simple histogram implementation
-kernel void hist_simple(global const int* A, global int* H) { 
+kernel void hist_simple(global const int* A, global int* H, const int nr_bins) { 
 	int id = get_global_id(0);
 
 	//assumes that H has been initialised to 0
 	int bin_index = A[id];//take value as a bin index
+	INFINITY;
+	if (bin_index > nr_bins - 1)
+	{
+		bin_index = nr_bins - 1;	
+	}
 
 	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
 }

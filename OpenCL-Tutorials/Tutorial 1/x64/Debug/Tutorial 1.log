@@ -1,5 +1,6 @@
 ﻿  Tutorial 1.cpp
   cl_version.h: CL_TARGET_OPENCL_VERSION is not defined. Defaulting to 220 (OpenCL 2.2)
-  Tutorial 1.vcxproj -> C:\Users\Computing\OpenCL-Tutorials\x64\Debug\Tutorial 1\Tutorial 1.exe
+  LINK : C:\Users\Computing\OpenCL\OpenCL-Tutorials\x64\Debug\Tutorial 1\Tutorial 1.exe not found or not built by the last incremental link; performing full link
+  Tutorial 1.vcxproj -> C:\Users\Computing\OpenCL\OpenCL-Tutorials\x64\Debug\Tutorial 1\Tutorial 1.exe
   kernels\my_kernels.cl
   1 File(s) copied
