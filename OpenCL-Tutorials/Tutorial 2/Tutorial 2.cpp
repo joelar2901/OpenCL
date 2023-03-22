@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 		cl::Context context = GetContext(platform_id, device_id);
 
 		//display the selected device
-		std::cout << "Runing on " << GetPlatformName(platform_id) << ", " << GetDeviceName(platform_id, device_id) << std::endl;
+		std::cout << "Running on " << GetPlatformName(platform_id) << ", " << GetDeviceName(platform_id, device_id) << std::endl;
 
 		//create a queue to which we will push commands for the device
 		cl::CommandQueue queue(context);
@@ -72,14 +72,18 @@ int main(int argc, char **argv) {
 
 		//Part 4 - device operations
 
-		//device - buffers
-		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
-		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
-//		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
-
 		typedef int mytype;
 		std::vector<mytype> H(256);
 		size_t histsize = H.size() * sizeof(mytype);
+
+
+		//device - buffers
+		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
+		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
+		cl::Buffer dev_histogram_output(context, CL_MEM_READ_WRITE, histsize);
+		cl::Buffer dev_cumulative_histogram_output(context, CL_MEM_READ_WRITE, histsize);
+		cl::Buffer dev_LUT_output(context, CL_MEM_READ_WRITE, histsize);
+//		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
 
 		//4.1 Copy images to device memory
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
@@ -88,26 +92,69 @@ int main(int argc, char **argv) {
 		//4.2 Setup and execute the kernel (i.e. device code)
 		cl::Kernel kernel = cl::Kernel(program, "hist_simple");
 		kernel.setArg(0, dev_image_input); 
-		kernel.setArg(1, dev_image_output); 
+		kernel.setArg(1, dev_histogram_output); 
 //		kernel.setArg(2, dev_convolution_mask);
 
-		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.width(), image_input.height(),image_input.spectrum()), 32);
+		cl::Event prof_event;
+
+		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange, NULL, &prof_event);
 
 		vector<unsigned char> output_buffer(image_input.size());
 		//4.3 Copy the result from device to host
 		//queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
-		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, histsize, &H[0] );
+		queue.enqueueReadBuffer(dev_histogram_output, CL_TRUE, 0, histsize, &H[0]);
+		std::cout << "Histogram: " << H << std::endl;
 
+		std::vector<mytype> CH(256);
 
+		queue.enqueueFillBuffer(dev_cumulative_histogram_output, 0, 0, histsize);
 
-		//CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
-		//CImgDisplay disp_output(output_image,"output");
+		//The second kernel call plots a cumulative histogram of the total pixels in the picture across pixel values 0-255, so by 255, all pixels have been counted
+		cl::Kernel kernel_hist_cum = cl::Kernel(program, "hist_cum");
+		kernel_hist_cum.setArg(0, dev_histogram_output);
+		kernel_hist_cum.setArg(1, dev_cumulative_histogram_output);
 
- 		/*while (!disp_input.is_closed() && !disp_output.is_closed()
+		cl::Event prof_CH;
+
+		queue.enqueueNDRangeKernel(kernel_hist_cum, cl::NullRange, cl::NDRange(histsize), cl::NullRange, NULL, &prof_CH);
+		queue.enqueueReadBuffer(dev_cumulative_histogram_output, CL_TRUE, 0, histsize, &CH[0]);
+		std::cout << "cumulative Histogram: " << CH << std::endl;
+
+		std::vector<mytype> LUT(256);
+
+		queue.enqueueFillBuffer(dev_LUT_output, 0, 0, histsize);
+
+		//The third kernel call creates a new histogram that will serve as a look up table of the new pixel vales. It does this by normalising the cumulative histogram, essentially decreasing the value of the pixels to increase the contrast
+		cl::Kernel kernel_LUT = cl::Kernel(program, "normalise");
+		kernel_LUT.setArg(0, dev_cumulative_histogram_output);
+		kernel_LUT.setArg(1, dev_LUT_output);
+
+		cl::Event prof_event3;
+
+		queue.enqueueNDRangeKernel(kernel_LUT, cl::NullRange, cl::NDRange(histsize), cl::NullRange, NULL, &prof_event3);
+		queue.enqueueReadBuffer(dev_LUT_output, CL_TRUE, 0, histsize, &LUT[0]);
+		std::cout << "LUT: " << LUT << std::endl;
+
+		cl::Kernel kernel_ReProject = cl::Kernel(program, "back_proj");
+		kernel_ReProject.setArg(0, dev_image_input);
+		kernel_ReProject.setArg(1, dev_LUT_output);
+		kernel_ReProject.setArg(2, dev_image_output);
+
+		cl::Event prof_event4;
+
+		//The values from each histogram are printed, along with the kernel execution times and memory transfer of each kernel.
+
+		queue.enqueueNDRangeKernel(kernel_ReProject, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange, NULL, &prof_event4);
+		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+
+		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		CImgDisplay disp_output(output_image,"output");
+
+ 		while (!disp_input.is_closed() && !disp_output.is_closed()
 			&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
 		    disp_input.wait(1);
 		    disp_output.wait(1);
-	    } */		
+	    } 		
 
 	}
 	catch (const cl::Error& err) {

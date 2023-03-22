@@ -4,7 +4,7 @@ kernel void identity(global const uchar* A, global uchar* B) {
 	B[id] = A[id];
 }
 
-kernel void hist_simple(global const int* A, global int* H /*, const int nr_bins */) { 
+kernel void hist_simple(global const uchar* A, global int* H /*, const int nr_bins */) { 
 	int id = get_global_id(0);
 
 	//assumes that H has been initialised to 0
@@ -18,6 +18,23 @@ kernel void hist_simple(global const int* A, global int* H /*, const int nr_bins
 	atomic_inc(&H[bin_index]);
 }
 
+kernel void hist_cum(global int* H, global int* CH) {
+	int id = get_global_id(0);
+	int N = get_global_size(0);
+	for (int i = id + 1; i < N; i++)
+		atomic_add(&CH[i], H[id]);
+    }
+
+kernel void normalise(global int* CH, global int* norm) {
+	int id = get_global_id(0);
+	//CH[255] is the total number of pixels 
+	norm[id] = CH[id] * (double)255 / CH[255];
+}
+
+kernel void back_proj(global uchar* A, global int* norm, global uchar* B) {
+	int id = get_global_id(0);
+	B[id] = norm[A[id]];
+}
 
 kernel void filter_r(global const uchar* A, global uchar* B) {
 	int id = get_global_id(0);

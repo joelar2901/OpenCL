@@ -1,4 +1,5 @@
-﻿  Tutorial 3.cpp
+﻿C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Microsoft\VC\v160\Microsoft.CppClean.targets(77,5): warning : The process cannot access the file 'c:\users\computing\opencl\opencl-tutorials\tutorial 3\x64\debug\tutorial 3.ilk' because it is being used by another process.
+  Tutorial 3.cpp
   cl_version.h: CL_TARGET_OPENCL_VERSION is not defined. Defaulting to 220 (OpenCL 2.2)
   LINK : C:\Users\Computing\OpenCL\OpenCL-Tutorials\x64\Debug\Tutorial 3\Tutorial 3.exe not found or not built by the last incremental link; performing full link
   Tutorial 3.vcxproj -> C:\Users\Computing\OpenCL\OpenCL-Tutorials\x64\Debug\Tutorial 3\Tutorial 3.exe
