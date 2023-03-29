@@ -1,6 +1,6 @@
 ﻿  Tutorial 2.cpp
   cl_version.h: CL_TARGET_OPENCL_VERSION is not defined. Defaulting to 220 (OpenCL 2.2)
-  Tutorial 2.vcxproj -> C:\Users\Computing\OpenCL\x64\Debug\Tutorial 2\Tutorial 2.exe
+  Tutorial 2.vcxproj -> C:\Users\Computing\OpenCL\OpenCL\x64\Debug\Tutorial 2\Tutorial 2.exe
   ..\images\dog.jpg
   ..\images\test(1).pgm
   ..\images\test.ppm

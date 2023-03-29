@@ -20,7 +20,9 @@ int main(int argc, char **argv) {
 	//Part 1 - handle command line options such as device selection, verbosity, etc.
 	int platform_id = 0;
 	int device_id = 0;
-	string image_filename = "test.ppm";
+	string image_filename = "test_large(1).pgm";
+	// enter test.ppm or test_large.ppm to test the coloured images 
+	//enter  test(1).pgm or test_large(1).pgm to test the greyscale images
 
 	for (int i = 1; i < argc; i++) {
 		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
@@ -74,12 +76,15 @@ int main(int argc, char **argv) {
 
 		//Part 4 - device operations
 
+		// here we make the vector of a histogram
 		typedef int mytype;
 		std::vector<mytype> H(256);
 		size_t histsize = H.size() * sizeof(mytype);
 
+		// CB and CR allow us to get the intensities of the inputted image
 		CImg<unsigned char> CB;
 		CImg<unsigned char> CR;
+		// This boolean will be triggered if the image is coloured and will trigger an if statement further on in the code
 		bool colour_image = false;
 
 		if (image_input.spectrum() == 3)
@@ -87,27 +92,25 @@ int main(int argc, char **argv) {
 			image_input = image_input.get_RGBtoYCbCr();
 			CB = image_input.get_channel(1);
 			CR= image_input.get_channel(2);
-			image_input = image_input.get_channel(0);
+			image_input = image_input.get_channel(0); // sets the image to (essentially) greyscale
 			colour_image = true;
+			// here we set the bool to true and gather the input intensities 
 		} 
 
 		//device - buffers
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 		cl::Buffer dev_histogram_output(context, CL_MEM_READ_WRITE, histsize);
-		cl::Buffer dev_cumulative_histogram_output(context, CL_MEM_READ_WRITE, histsize);
+		cl::Buffer dev_cumulative_histogram_output(context, CL_MEM_READ_WRITE, histsize); // an empty buffer to avoid data overwrite 
 		cl::Buffer dev_LUT_output(context, CL_MEM_READ_WRITE, histsize);
-//		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
 
 		//4.1 Copy images to device memory
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
-//		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
 
 		//4.2 Setup and execute the kernel (i.e. device code)
 		cl::Kernel kernel = cl::Kernel(program, "hist_simple");
 		kernel.setArg(0, dev_image_input); 
 		kernel.setArg(1, dev_histogram_output); 
-//		kernel.setArg(2, dev_convolution_mask);
 
 		cl::Event prof_event;
 
@@ -115,9 +118,10 @@ int main(int argc, char **argv) {
 
 		vector<unsigned char> output_buffer(image_input.size());
 		//4.3 Copy the result from device to host
-		//queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
 		queue.enqueueReadBuffer(dev_histogram_output, CL_TRUE, 0, histsize, &H[0]);
+		// here we output the histogram values
 		std::cout << "Histogram: " << H << std::endl;
+		// here we output the kernel and memory transfer times
 		std::cout << "Transfer Time: " << GetFullProfilingInfo(prof_event, ProfilingResolution::PROF_US);
 		std::cout << "Kernel execution time [us]:" <<
 			prof_event.getProfilingInfo<CL_PROFILING_COMMAND_END>() -
@@ -127,7 +131,7 @@ int main(int argc, char **argv) {
 
 		queue.enqueueFillBuffer(dev_cumulative_histogram_output, 0, 0, histsize);
 
-		//The second kernel call plots a cumulative histogram of the total pixels in the picture across pixel values 0-255, so by 255, all pixels have been counted
+		//The second kernel call plots a cumulative histogram across pixel values 0-255, so by 255, all pixels have been counted
 		cl::Kernel kernel_hist_cum = cl::Kernel(program, "scan_hs");
 		kernel_hist_cum.setArg(0, dev_histogram_output);
 		kernel_hist_cum.setArg(1, dev_cumulative_histogram_output);
@@ -136,7 +140,9 @@ int main(int argc, char **argv) {
 
 		queue.enqueueNDRangeKernel(kernel_hist_cum, cl::NullRange, cl::NDRange(histsize), cl::NullRange, NULL, &prof_CH);
 		queue.enqueueReadBuffer(dev_histogram_output, CL_TRUE, 0, histsize, &CH[0]);
+		// here we output the cumulative histogram values
 		std::cout << "cumulative Histogram: " << CH << std::endl;
+		// here we output the kernel and memory transfer times
 		std::cout << "Transfer Time: " << GetFullProfilingInfo(prof_CH, ProfilingResolution::PROF_US);
 		std::cout << "Kernel execution time [us]:" <<
 			prof_CH.getProfilingInfo<CL_PROFILING_COMMAND_END>() -
@@ -157,6 +163,7 @@ int main(int argc, char **argv) {
 		queue.enqueueNDRangeKernel(kernel_LUT, cl::NullRange, cl::NDRange(histsize), cl::NullRange, NULL, &prof_event3);
 		queue.enqueueReadBuffer(dev_LUT_output, CL_TRUE, 0, histsize, &LUT[0]);
 		std::cout << "LUT: " << LUT << std::endl;
+		// here we output the kernel and memory transfer times
 		std::cout << "Transfer Time: " << GetFullProfilingInfo(prof_event3, ProfilingResolution::PROF_US);
 		std::cout << "Kernel execution time [us]:" <<
 			prof_event3.getProfilingInfo<CL_PROFILING_COMMAND_END>() -
@@ -174,13 +181,15 @@ int main(int argc, char **argv) {
 
 		queue.enqueueNDRangeKernel(kernel_ReProject, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange, NULL, &prof_event4);
 		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+		// here we output the back projection kernel and memory transfer times
 		std::cout << " Back projection Transfer Time: " << GetFullProfilingInfo(prof_event4, ProfilingResolution::PROF_US) << std::endl;
 		std::cout << " Back projection Kernel execution time [us]:" <<
 			prof_event4.getProfilingInfo<CL_PROFILING_COMMAND_END>() -
 			prof_event4.getProfilingInfo<CL_PROFILING_COMMAND_START>() << std::endl;
 		
-
+	
 		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		// the recombined image allows us to combine channels and convert the image back to RGB in the if statement below
 		CImg<unsigned char> recombined_image(image_input.width(), image_input.height(), 1,3);
 		
 
@@ -190,6 +199,7 @@ int main(int argc, char **argv) {
 				recombined_image(x, y, 0, 1) = CB(x, y);
 				recombined_image(x, y, 0, 2) = CR(x, y);
 			}
+			//converts back to RGB
 			output_image = recombined_image.YCbCrtoRGB();
 		}
 
